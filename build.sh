@@ -5,7 +5,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 # Try MinGW cross-compiler first (available in WSL)
 if command -v x86_64-w64-mingw32-gcc &>/dev/null; then
     echo "Building with MinGW-w64 cross-compiler..."
-    x86_64-w64-mingw32-gcc -O2 -Wall -municode -mwindows -o "$DIR/WindowMan.exe" "$DIR/main.c" -luser32 -lshell32 -lole32 -luuid -lshlwapi
+    x86_64-w64-mingw32-gcc -O2 -Wall -municode -o "$DIR/WindowMan.exe" "$DIR/main.c" -luser32 -lshell32 -lole32 -luuid -lshlwapi -mconsole
     echo "Build successful: $DIR/WindowMan.exe"
 else
     # Fall back to MSVC via WSL interop

@@ -22,7 +22,7 @@ typedef struct {
 typedef struct {
     WindowList *before;
     const wchar_t *title;
-    int applied;
+    HWND found_hwnd;
 } EnumCtx;
 
 static void ApplyIcon(HWND hwnd) {
@@ -43,9 +43,6 @@ static void ApplyIcon(HWND hwnd) {
 
     SetClassLongPtrW(hwnd, GCLP_HICON, (LONG_PTR)hBig);
     SetClassLongPtrW(hwnd, GCLP_HICONSM, (LONG_PTR)hSmall);
-
-    SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
-        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 }
 
 static BOOL CALLBACK EnumBeforeProc(HWND hwnd, LPARAM lParam) {
@@ -80,8 +77,8 @@ static BOOL CALLBACK EnumAfterProc(HWND hwnd, LPARAM lParam) {
     }
 
     ApplyIcon(hwnd);
-    ctx->applied++;
-    return TRUE;
+    ctx->found_hwnd = hwnd;
+    return FALSE;
 }
 
 static BOOL CreateTempShortcut(const wchar_t *shortcutPath, const wchar_t *targetPath,
@@ -111,9 +108,9 @@ static BOOL CreateTempShortcut(const wchar_t *shortcutPath, const wchar_t *targe
     return SUCCEEDED(hr);
 }
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow) {
-    int argc;
-    wchar_t **argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+int wmain(int argc, wchar_t **argv) {
+    HWND hCon = GetConsoleWindow();
+    if (hCon) ShowWindow(hCon, SW_HIDE);
 
     const wchar_t *icon = NULL;
     const wchar_t *title = NULL;
@@ -180,21 +177,28 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     EnumCtx ctx = {0};
     ctx.before = &before;
     ctx.title = title;
-    ctx.applied = 0;
+    ctx.found_hwnd = NULL;
 
     while (GetTickCount() - start < 30000) {
         DWORD status = WaitForSingleObject(sei.hProcess, 500);
         if (status == WAIT_OBJECT_0 && !keepalive)
             break;
 
-        ctx.applied = 0;
-        EnumWindows(EnumAfterProc, (LPARAM)&ctx);
-        if (ctx.applied > 0)
-            break;
+        if (!ctx.found_hwnd) {
+            EnumWindows(EnumAfterProc, (LPARAM)&ctx);
+        } else {
+            ApplyIcon(ctx.found_hwnd);
+        }
     }
 
-    if (keepalive)
-        WaitForSingleObject(sei.hProcess, INFINITE);
+    if (keepalive) {
+        while (WaitForSingleObject(sei.hProcess, 3000) == WAIT_TIMEOUT) {
+            if (ctx.found_hwnd && IsWindow(ctx.found_hwnd))
+                ApplyIcon(ctx.found_hwnd);
+        }
+        if (ctx.found_hwnd && IsWindow(ctx.found_hwnd))
+            ApplyIcon(ctx.found_hwnd);
+    }
 
     DestroyIcon(g_hIcon);
     CloseHandle(sei.hProcess);
